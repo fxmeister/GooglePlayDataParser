@@ -2,6 +2,8 @@ import csv
 import os
 import signal
 import sys
+import matplotlib.pyplot as plt
+import numpy as np
 
 '''
     Copyright Timothy Miller
@@ -48,6 +50,16 @@ def update_paid_count(content):
 
 
 def process_line(content):
+    global permissions_dict
+    permissions_used = content.split("|")
+    for permission in permissions_used:
+        if permission in permissions_dict.keys():
+            # update value
+            permissions_dict[permission] += 1
+        elif not permission.strip() == '':
+            # initialize value
+            permissions_dict[permission] = 1
+
     global num_camera
     global num_mic
     global num_draw_top
@@ -120,7 +132,7 @@ def print_results():
     print(str(num_apps_with_permission_data) + " apps processed")
     print(str(num_free) + " free apps")
     print(str(num_paid) + " paid apps")
-    print(str(100.0 *(num_free + num_paid)) + " apps considered")
+    print(str(100.0 * (num_free + num_paid)) + " apps considered")
     print(str(100.0 * (num_free / num_apps)) + "% are free")
     print(str(100.0 * (num_paid / num_apps)) + "% are paid")
     print("----------------------------------------------")
@@ -173,6 +185,54 @@ def print_results():
     print("End Process")
 
 
+def plot_results():
+    global num_apps_with_permission_data
+    global permissions_dict
+
+    # Prune list of erraneous permissions from dataset (<100 occurences), else, normalize to 100%
+    for k in list(permissions_dict):
+        if permissions_dict[k] < 100:
+            del permissions_dict[k]
+        else:
+            permissions_dict[k] = 100.0 * float(permissions_dict[k]) / float(num_apps_with_permission_data)
+
+    '''
+    TODO Order permission chart by frequency
+    x_axis_vals = []
+    y_axis_vals = []
+    for w in sorted(permissions_dict, key=permissions_dict.get, reverse=True):
+        x_axis_vals.add(w)
+        y_axis_vals.add(permissions_dict[w])
+        print(w, permissions_dict[w])
+    '''
+
+    y_values = list(permissions_dict.values())
+    text_values = list(permissions_dict.keys())
+
+    x_values = np.arange(1, len(text_values) + 1, 1)
+
+    plt.bar(x_values, y_values, align='center')
+    plt.xticks(x_values, text_values, rotation=90)
+
+    plt.title("Permission Frequency on Google Play (June, 2016)")
+    plt.ylabel("Percentage of Apps")
+    plt.xlabel("Permission Description")
+
+    # adjust plot to show x axis labels 40% of screen
+    fig = plt.gcf()
+    fig.subplots_adjust(bottom=0.4)
+
+    plt.show()
+
+
+
+
+def update():
+    for key in permissions_dict.keys():
+        print(key)
+        print(permissions_dict[key])
+
+
 if __name__ == "__main__":
 
     # to avoid "field larger than field limit (131072)" exceptions
@@ -188,6 +248,9 @@ if __name__ == "__main__":
     PERMISSION_DRAW_TOP = "DRAW OVER OTHER APPS"
     PERMISSION_STARTUP = "RUN AT STARTUP"
     PERMISSION_INTERNET = "FULL NETWORK ACCESS"
+
+    global permissions_dict
+    permissions_dict = {}
 
     global num_internet
     num_internet = 0
@@ -235,9 +298,12 @@ if __name__ == "__main__":
     global num_paid
     num_paid = 0
 
+    sample_size = 0
     print("Starting data analysis")
     ### Data is semicolon separated per row. Some data is malformed so we skip this data to continue processing.
     for row in read:
+        if sample_size > 10000:
+            break
         split_row = ''.join(row).split(";")
         if count == 0:
             column_names = split_row
@@ -248,7 +314,11 @@ if __name__ == "__main__":
             else:
                 process_line(split_row[33])
                 update_paid_count(split_row[10])
+                # update()
         if count == 0:
             count += 1
+        sample_size += 1
 
     print_results()
+    plot_results()
+
